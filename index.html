@@ -170,36 +170,95 @@
     </div>
 
     <script>
-        let state = { hunger: 100, isSick: false, money: 50000, isHidden: false, lastUpdateTime: Date.now() };
-        const NORMAL_HUNGER_RATE = 1.2, HIDDEN_HUNGER_RATE = 0.3, SICK_PROBABILITY_PER_SEC = 0.02; 
+        // 🚀 初始化遊戲狀態
+        let state = {
+            hunger: 100,
+            isSick: false,
+            money: 50000,
+            isHidden: false,
+            lastUpdateTime: Date.now()
+        };
+
+        const NORMAL_HUNGER_RATE = 1.2; 
+        const HIDDEN_HUNGER_RATE = 0.3; 
+        const SICK_PROBABILITY_PER_SEC = 0.02; 
+        
         let clickTimer = null;
+        let dialogueInterval = null;
+
+        const dialogues = [
+            "平穩呼吸中...摸我...",
+            "肚子扁了！餵食！",
+            "起飛吃肉！",
+            "生病發冷中...",
+            "蹭蹭 ) 好舒服喔～",
+            "＠＠ ) 暈暈眩...",
+            "✨ SMC 交易：又爆倉了，準備跳樓",
+            "📝 微積分作業：完全寫不完，怎麼辦",
+            "SMC SMC...我要學 SMC...",
+            "微積分寫不完、爆倉、生病，資工系人生"
+        ];
 
         function initGame() {
-            let savedState = localStorage.getItem('petExtensionState');
-            if (savedState) { state = JSON.parse(savedState); calculateOfflineProgress(); } 
-            else { state.lastUpdateTime = Date.now(); saveGame(); }
-            updateUI(); setInterval(gameLoop, 1000);
+            let savedState = localStorage.getItem('petUniverseState');
+            if (savedState) {
+                state = JSON.parse(savedState);
+                calculateOfflineProgress();
+            } else {
+                state.lastUpdateTime = Date.now();
+                saveGame();
+            }
+            updateUI();
+            setInterval(gameLoop, 1000);
+            startDialogueEngine();
         }
 
         function calculateOfflineProgress() {
-            let now = Date.now(), secondsPassed = (now - state.lastUpdateTime) / 1000;
+            let now = Date.now();
+            let secondsPassed = (now - state.lastUpdateTime) / 1000;
             if (secondsPassed > 0) {
                 let rate = state.isHidden ? HIDDEN_HUNGER_RATE : NORMAL_HUNGER_RATE;
                 state.hunger -= (secondsPassed * rate);
                 if (state.hunger < 0) state.hunger = 0;
-                if (!state.isSick && Math.random() < (1 - Math.pow((1 - SICK_PROBABILITY_PER_SEC), secondsPassed))) state.isSick = true;
+                
+                if (!state.isSick && secondsPassed > 10 && Math.random() < (1 - Math.pow((1 - SICK_PROBABILITY_PER_SEC), secondsPassed))) {
+                    state.isSick = true;
+                }
             }
-            state.lastUpdateTime = now; saveGame();
+            state.lastUpdateTime = now;
+            saveGame();
         }
 
         function gameLoop() {
-            let now = Date.now(), deltaSeconds = (now - state.lastUpdateTime) / 1000;
+            let now = Date.now();
+            let deltaSeconds = (now - state.lastUpdateTime) / 1000;
             state.lastUpdateTime = now;
+
             let rate = state.isHidden ? HIDDEN_HUNGER_RATE : NORMAL_HUNGER_RATE;
             state.hunger -= (deltaSeconds * rate);
-            if (state.hunger <= 0) { state.hunger = 0; state.isSick = true; }
-            if (!state.isSick && state.hunger > 0 && Math.random() < (SICK_PROBABILITY_PER_SEC * deltaSeconds)) state.isSick = true;
-            updateUI(); saveGame();
+
+            if (state.hunger <= 0) {
+                state.hunger = 0;
+                state.isSick = true;
+            }
+
+            if (!state.isSick && state.hunger > 0 && Math.random() < (SICK_PROBABILITY_PER_SEC * deltaSeconds)) {
+                state.isSick = true;
+            }
+
+            updateUI();
+            saveGame();
+        }
+
+        // 🧠 對話氣泡引擎
+        function startDialogueEngine() {
+            if (dialogueInterval) clearInterval(dialogueInterval);
+            dialogueInterval = setInterval(() => {
+                if (!state.isSick && !state.isHidden && state.hunger > 30 && !document.getElementById('pet-body-main').classList.contains('animate-touch')) {
+                    const randomDialogue = dialogues[Math.floor(Math.random() * dialogues.length)];
+                    document.getElementById('mood-bubble').innerText = randomDialogue;
+                }
+            }, 20000); // 每 20 秒
         }
 
         function touchPet(mode) {
@@ -212,7 +271,7 @@
             void petContainer.offsetWidth; 
             petContainer.classList.add('animate-touch');
             setFace(containerId, ">", "<", "▽", "rotate(20deg)");
-            if(mode === 'main') document.getElementById('mood-bubble').innerText = "（ 蹭蹭 ）好舒服喔～";
+            if(mode === 'main') document.getElementById('mood-bubble').innerText = "( 蹭蹭 ) 好舒服喔～";
 
             spawnParticles(particleId, "❤️", "#f43f5e", "pop-particle");
 
@@ -227,7 +286,8 @@
         }
 
         function spinPet(event) {
-            event.stopPropagation(); clearTimeout(clickTimer); 
+            event.stopPropagation();
+            clearTimeout(clickTimer); 
             if (state.isSick) return;
             const petContainer = document.getElementById('pet-body-mini');
             petContainer.classList.remove('animate-breathe', 'animate-touch');
@@ -239,24 +299,39 @@
 
             setTimeout(() => {
                 petContainer.classList.remove('animate-spin-crazy');
-                if (!state.isSick) { petContainer.classList.add('animate-breathe'); setFace('pet-body-mini', "●", "●", "ω", "rotate(-30deg)"); }
+                if (!state.isSick) {
+                    petContainer.classList.add('animate-breathe');
+                    setFace('pet-body-mini', "●", "●", "ω", "rotate(-30deg)");
+                }
             }, 500);
         }
 
         function feedPet() {
             if (state.isSick) { alert("生病中吃不下！請就醫！"); return; }
             if (state.money >= 100) {
-                state.money -= 100; state.hunger += 20;
+                state.money -= 100;
+                state.hunger += 20;
                 if (state.hunger > 100) state.hunger = 100;
+                
                 const petContainer = document.getElementById('pet-body-main');
                 petContainer.classList.remove('animate-breathe', 'animate-touch');
-                void petContainer.offsetWidth; petContainer.classList.add('animate-jump'); 
+                void petContainer.offsetWidth;
+                petContainer.classList.add('animate-jump'); 
                 setFace('pet-body-main', "★", "★", "口", "rotate(-10deg)");
                 document.getElementById('mood-bubble').innerText = "起飛吃肉！";
+                
                 spawnParticles('particle-container-main', "+20", "#16a34a", "pop-particle");
-                setTimeout(() => { petContainer.classList.remove('animate-jump'); if (!state.isSick) petContainer.classList.add('animate-breathe'); }, 600);
-                updateUI(); saveGame();
-            } else { alert("破產了！"); }
+
+                setTimeout(() => {
+                    petContainer.classList.remove('animate-jump');
+                    if (!state.isSick) petContainer.classList.add('animate-breathe');
+                }, 600);
+
+                updateUI();
+                saveGame();
+            } else {
+                alert("破產了！💸");
+            }
         }
 
         function setFace(parentId, eyeL, eyeR, mouth, tailRotation) {
@@ -272,26 +347,34 @@
             for (let i = 0; i < 3; i++) {
                 const p = document.createElement('div');
                 p.className = `absolute font-bold text-lg ${animationClass}`;
-                p.style.color = color; p.innerText = text;
-                p.style.left = `${Math.random() * 40 - 20}px`; p.style.top = `-10px`;
-                container.appendChild(p); setTimeout(() => { p.remove(); }, 800);
+                p.style.color = color;
+                p.innerText = text;
+                p.style.left = `${Math.random() * 40 - 20}px`;
+                p.style.top = `-10px`;
+                container.appendChild(p);
+                setTimeout(() => { p.remove(); }, 800);
             }
         }
 
         function healPet() {
             if (state.money >= 5000) {
-                state.money -= 5000; state.isSick = false;
+                state.money -= 5000;
+                state.isSick = false;
                 document.getElementById('pet-body-main').className = "cursor-pointer transition-all duration-200 animate-breathe flex flex-col items-center";
                 document.getElementById('pet-body-mini').className = "animate-breathe flex flex-col items-center transform scale-50 origin-bottom mt-6";
-                updateUI(); saveGame();
-            } else { alert("醫療費不足！"); }
+                updateUI();
+                saveGame();
+            } else {
+                alert("醫療費不足！💸");
+            }
         }
 
         function toggleHide(e) {
             if(e) e.stopPropagation();
             state.isHidden = true;
             if(window.parent) window.parent.postMessage("shrink", "*");
-            updateUI(); saveGame();
+            updateUI();
+            saveGame();
         }
 
         function restoreGame(e) {
@@ -299,21 +382,32 @@
             clickTimer = setTimeout(() => {
                 state.isHidden = false;
                 if(window.parent) window.parent.postMessage("expand", "*");
-                updateUI(); saveGame();
+                updateUI();
+                saveGame();
             }, 250);
         }
 
-        function saveGame() { localStorage.setItem('petExtensionState', JSON.stringify(state)); }
+        function saveGame() {
+            localStorage.setItem('petUniverseState', JSON.stringify(state));
+        }
 
         function updateUI() {
-            let mainWindow = document.getElementById('main-window'), floatingBall = document.getElementById('floating-ball');
+            let mainWindow = document.getElementById('main-window');
+            let floatingBall = document.getElementById('floating-ball');
+
             if (state.isHidden) {
                 mainWindow.classList.add('scale-0', 'opacity-0', 'pointer-events-none');
-                setTimeout(() => { mainWindow.classList.add('hidden'); floatingBall.classList.remove('hidden'); }, 300);
+                setTimeout(() => {
+                    mainWindow.classList.add('hidden');
+                    floatingBall.classList.remove('hidden');
+                }, 300);
                 
-                let ballAlert = document.getElementById('ball-alert'), petMini = document.getElementById('pet-body-mini');
+                let ballAlert = document.getElementById('ball-alert');
+                let petMini = document.getElementById('pet-body-mini');
+
                 if (state.isSick || state.hunger < 20) {
-                    ballAlert.classList.remove('hidden'); floatingBall.classList.add('sick-alert');
+                    ballAlert.classList.remove('hidden');
+                    floatingBall.classList.add('sick-alert');
                     if (state.isSick && !petMini.classList.contains('animate-sick')) {
                         petMini.className = "animate-sick flex flex-col items-center transform scale-50 origin-bottom mt-6";
                         setFace('pet-body-mini', "×", "×", "n", "rotate(0deg)");
@@ -321,7 +415,8 @@
                         document.documentElement.style.setProperty('--pet-skin-light', 'var(--pet-sick-light)');
                     }
                 } else {
-                    ballAlert.classList.add('hidden'); floatingBall.classList.remove('sick-alert');
+                    ballAlert.classList.add('hidden');
+                    floatingBall.classList.remove('sick-alert');
                     if(!state.isSick && petMini.classList.contains('animate-sick')) {
                         petMini.className = "animate-breathe flex flex-col items-center transform scale-50 origin-bottom mt-6";
                         setFace('pet-body-mini', "●", "●", "ω", "rotate(-30deg)");
@@ -329,38 +424,58 @@
                         document.documentElement.style.setProperty('--pet-skin-light', '#3A4F50');
                     }
                 }
+
             } else {
-                floatingBall.classList.add('hidden'); mainWindow.classList.remove('hidden');
-                setTimeout(() => { mainWindow.classList.remove('scale-0', 'opacity-0', 'pointer-events-none'); }, 10);
+                floatingBall.classList.add('hidden');
+                mainWindow.classList.remove('hidden');
+                setTimeout(() => {
+                    mainWindow.classList.remove('scale-0', 'opacity-0', 'pointer-events-none');
+                }, 10);
+
                 document.getElementById('pet-money').innerText = `💰 存款: ${state.money.toLocaleString()}`;
-                let hungerBar = document.getElementById('hunger-bar'); hungerBar.style.width = `${state.hunger}%`;
+                
+                let hungerBar = document.getElementById('hunger-bar');
+                hungerBar.style.width = `${state.hunger}%`;
+                
                 let petMain = document.getElementById('pet-body-main');
 
                 if (state.isSick) {
                     document.getElementById('pet-status').innerText = "🐾 狀態: 🤒 急診生病";
                     document.getElementById('pet-status').className = "text-red-600 font-bold";
                     hungerBar.className = "bg-red-500 h-full transition-all duration-500";
+                    
                     document.documentElement.style.setProperty('--pet-skin-dark', 'var(--pet-sick-dark)');
                     document.documentElement.style.setProperty('--pet-skin-light', 'var(--pet-sick-light)');
+                    
                     petMain.className = "cursor-pointer transition-all duration-200 animate-sick flex flex-col items-center";
-                    if(!petMain.classList.contains('animate-jump')) { setFace('pet-body-main', "×", "×", "n", "rotate(0deg)"); document.getElementById('mood-bubble').innerText = "生病發冷中..."; }
+                    if(!petMain.classList.contains('animate-jump')) {
+                        setFace('pet-body-main', "×", "×", "n", "rotate(0deg)");
+                        document.getElementById('mood-bubble').innerText = "生病發冷中...";
+                    }
                     document.getElementById('heal-btn').classList.remove('hidden');
                 } else {
-                    document.getElementById('pet-status').innerText = "🐾 狀態: 🌱 正常"; document.getElementById('pet-status').className = "text-[#3A4F50] font-bold";
+                    document.getElementById('pet-status').innerText = "🐾 狀態: 🌱 正常";
+                    document.getElementById('pet-status').className = "text-[#3A4F50] font-bold";
+                    
                     if(state.hunger > 50) hungerBar.className = "bg-green-500 h-full transition-all duration-500";
                     else if(state.hunger > 20) hungerBar.className = "bg-yellow-500 h-full transition-all duration-500";
                     else hungerBar.className = "bg-red-500 h-full transition-all duration-500";
-                    document.documentElement.style.setProperty('--pet-skin-dark', '#2A3A3B'); document.documentElement.style.setProperty('--pet-skin-light', '#3A4F50');
+
+                    document.documentElement.style.setProperty('--pet-skin-dark', '#2A3A3B');
+                    document.documentElement.style.setProperty('--pet-skin-light', '#3A4F50');
 
                     if(!petMain.classList.contains('animate-touch') && !petMain.classList.contains('animate-jump')) {
                         petMain.className = "cursor-pointer transition-all duration-200 animate-breathe flex flex-col items-center";
-                        if (state.hunger < 30) { setFace('pet-body-main', "●", "●", "A", "rotate(-30deg)"); document.getElementById('mood-bubble').innerText = "肚子扁了！餵食！"; } 
-                        else { setFace('pet-body-main', "●", "●", "ω", "rotate(-30deg)"); document.getElementById('mood-bubble').innerText = "平穩呼吸中...摸我..."; }
+                        if (state.hunger < 30) {
+                            setFace('pet-body-main', "●", "●", "A", "rotate(-30deg)");
+                            document.getElementById('mood-bubble').innerText = "肚子扁了！餵食！";
+                        } 
                     }
                     document.getElementById('heal-btn').classList.add('hidden');
                 }
             }
         }
+
         initGame();
     </script>
 </body>
